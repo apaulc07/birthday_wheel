@@ -116,6 +116,15 @@
   }
   .mute-btn:focus-visible{outline:3px solid #fff; outline-offset:2px;}
 
+  .countdown-banner{
+    font-family:'Bungee',cursive; font-size:.7rem; letter-spacing:.3px;
+    color:var(--gold); text-align:center; margin:8px auto 2px; max-width:340px;
+    background:rgba(10,19,64,.6); border:1px solid rgba(246,195,68,.4);
+    border-radius:8px; padding:7px 12px; display:none; line-height:1.4;
+  }
+  .countdown-banner.on{display:block;}
+  .countdown-banner.expired{color:#ff8a80; border-color:rgba(255,138,128,.5);}
+
   .pickcard{
     display:block; width:100%; text-align:left; cursor:pointer; font-family:'Nunito',sans-serif;
     background:linear-gradient(180deg,#ffe9a8,var(--gold) 55%,var(--gold2));
@@ -161,6 +170,7 @@
 <button id="muteBtn" class="mute-btn" type="button" aria-label="Mute music">🔊</button>
 
 <h1>WHO WANTS TO BE<br>A MILLIONAIRE?</h1>
+<div id="countdownBanner" class="countdown-banner"></div>
 <p class="sub">(terms &amp; conditions extremely applicable)</p>
 
 <div class="host" id="host">"Welcome to the hot seat. Let's spin for a million."</div>
@@ -515,11 +525,11 @@ const AudioEngine = (function(){
   const BONUS_SPIN1_AND_2  = ["A Compliment","Hugs & Kisses","Firm Handshake","IOU: One Favour","One Cup of Coffee","One Ice Cream Scoop"];
   // All bust-flavored results still get no bonus.
 
-  /* ---------- "send proof" gate (FormSubmit.co — no backend needed) ----------
-     Replace with the real destination email before sending this to anyone.
-     First-ever submission triggers a one-time confirmation email from
-     FormSubmit — click that once before the real recipient plays. */
-  const PROOF_EMAIL = "allancalpito@wjgl.com";
+  /* ---------- "send proof" gate (Web3Forms — no backend needed) ----------
+     This access key is a public identifier, not a secret — safe to keep in
+     client-side code. Notifications are delivered to whatever email address
+     was used to create this key at web3forms.com. */
+  const WEB3FORMS_ACCESS_KEY = "332b698b-9ab1-4125-8a82-8aa32a79ff57";
 
   /* ---------- one-play lock (this browser only) ----------
      Add ?reset=1 to the URL to clear this while testing. */
@@ -531,6 +541,44 @@ const AudioEngine = (function(){
       "Looks like you already made your choice on this device — no take-backs! 😄 Go collect your prize from the sender. ❤️🎂";
     document.getElementById('curtain').style.display='flex';
   }
+
+  /* ---------- 24-hour "full value" countdown ----------
+     DEADLINE_TS must be set to exactly 24 hours after you actually send the link —
+     it's a fixed moment in time, the same for every visitor, NOT "24h from whenever
+     they open it" (a static page has no way to know that on its own). Give Claude your
+     intended send date/time + timezone and it'll fill in the line below for you.
+     Format: an ISO 8601 string, e.g. "2026-07-15T02:00:00Z" (Z = UTC). */
+  const DEADLINE_TS = new Date("REPLACE_WITH_DEADLINE_ISO_TIMESTAMP").getTime();
+  const missedWindow = !isNaN(DEADLINE_TS) && Date.now() > DEADLINE_TS;
+
+  (function setupCountdown(){
+    const el = document.getElementById('countdownBanner');
+    if(isNaN(DEADLINE_TS)) return;   // not configured yet — banner stays hidden
+    el.classList.add('on');
+    function fmt(ms){
+      const t = Math.max(0, Math.floor(ms/1000));
+      const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+      return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    }
+    if(missedWindow){
+      el.textContent = "⏰ The 24-hour full-prize window has closed \u2014 secret bonuses are off the table now, but the wheel still spins!";
+      el.classList.add('expired');
+      return;
+    }
+    let timer;
+    function tick(){
+      const remain = DEADLINE_TS - Date.now();
+      if(remain<=0){
+        el.textContent = "⏰ Window closed";
+        el.classList.add('expired');
+        clearInterval(timer);
+        return;
+      }
+      el.textContent = "⏰ Full-prize window closes in "+fmt(remain);
+    }
+    tick();
+    timer = setInterval(tick, 1000);
+  })();
 
   const spinBtn=document.getElementById('spinBtn');
   const acceptBtn=document.getElementById('acceptBtn');
@@ -579,8 +627,9 @@ const AudioEngine = (function(){
       const pool=board.map((s,i)=>s.key?i:-1).filter(i=>i>=0 && board[i].key!==lastKey);
       return pool[Math.floor(Math.random()*pool.length)];
     }
-    // stage 3: random, but the four bust zones are pure decoration
-    const pool=board.map((s,i)=>s.bust?-1:i).filter(i=>i>=0);
+    // stage 3: rigged to only ever land on Flowers, Cake, or Movie Date — everything else on the board is pure decoration
+    const allowedNames=["Flowers","Cake","Movie Date"];
+    const pool=board.map((s,i)=>allowedNames.includes(s.name)?i:-1).filter(i=>i>=0);
     return pool[Math.floor(Math.random()*pool.length)];
   }
 
@@ -671,7 +720,8 @@ const AudioEngine = (function(){
     else if(n===2){ lastResult = s2Result; bonusTier = 0; }
     else {
       lastResult = s3Result;
-      if(BONUS_SPIN1_AND_2.includes(lastResult.name)) bonusTier = 2;
+      if(missedWindow) bonusTier = 0;
+      else if(BONUS_SPIN1_AND_2.includes(lastResult.name)) bonusTier = 2;
       else if(BONUS_SPIN2_ONLY.includes(lastResult.name)) bonusTier = 1;
       else bonusTier = 0;
     }
@@ -698,6 +748,8 @@ const AudioEngine = (function(){
     statusEl.textContent = "";
 
     const payload = {
+      access_key: WEB3FORMS_ACCESS_KEY,
+      subject: "\ud83c\udf82 Birthday wheel \u2014 they chose: " + lastResult.name,
       "Chosen Prize": lastResult.name,
       "Prize Details": lastResult.amt,
       "Bonus Unlocked": bonusTier===2 ? "YES \u2014 Spin 1 & Spin 2 prizes both unlocked!"
@@ -706,24 +758,18 @@ const AudioEngine = (function(){
       "Spin 1 Result": s1Result ? (s1Result.name+" \u2014 "+s1Result.amt) : "N/A (prize accepted early)",
       "Spin 2 Result": s2Result ? (s2Result.name+" \u2014 "+s2Result.amt) : "N/A (prize accepted early)",
       "Spin 3 Result": s3Result ? (s3Result.name+" \u2014 "+s3Result.amt) : "N/A (accepted before reaching spin 3)",
-      "_subject": "\ud83c\udf82 Birthday wheel \u2014 they chose: " + lastResult.name,
-      "_captcha": "false"
+      "Opened Within 24h Window": isNaN(DEADLINE_TS) ? "N/A (no deadline set)" : (missedWindow ? "No \u2014 bonuses were disabled" : "Yes")
     };
-    const formData = new FormData();
-    Object.keys(payload).forEach(k => formData.append(k, payload[k]));
 
-    fetch("https://formsubmit.co/ajax/"+PROOF_EMAIL, {
+    fetch("https://api.web3forms.com/submit", {
       method:"POST",
-      headers:{ "Accept":"application/json" },   // let the browser set its own multipart Content-Type + boundary
-      body: formData
+      headers:{ "Content-Type":"application/json", "Accept":"application/json" },
+      body: JSON.stringify(payload)
     })
-    .then(r => {
-      console.log('[proof-send] HTTP status:', r.status);
-      if(!r.ok) throw new Error('send failed: HTTP '+r.status);
-      return r.json().catch(()=>({}));
-    })
-    .then((data)=>{
-      console.log('[proof-send] response body:', data);
+    .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+    .then(({ok, status, data}) => {
+      console.log('[proof-send] HTTP status:', status, 'body:', data);
+      if(!ok || !data.success) throw new Error(data.message || ('send failed: HTTP '+status));
       document.getElementById('confirmOverlay').classList.remove('show');
       revealPrize();
     })
