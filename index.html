@@ -680,29 +680,39 @@ const AudioEngine = (function(){
     else { res=FUN_PRIZES[s.name]; }
     lastResult={...res, name:s.name};
 
-    document.getElementById('winName').textContent="🎉 "+s.name.toUpperCase()+" 🎉";
-    document.getElementById('winAmt').textContent=res.amt;
-    document.getElementById('winQuip').textContent=res.quip;
-    document.getElementById('cardOverlay').classList.add('show');
+    function reveal(){
+      document.getElementById('winName').textContent="🎉 "+s.name.toUpperCase()+" 🎉";
+      document.getElementById('winAmt').textContent=res.amt;
+      document.getElementById('winQuip').textContent=res.quip;
+      document.getElementById('cardOverlay').classList.add('show');
 
-    acceptBtn.style.display="inline-block";
-    if(stage>=3){
-      s3Result = lastResult;
-      spinBtn.style.display="none";
-      acceptBtn.textContent="🎁 PICK YOUR PRIZE";
-      say('"FOUR bust zones on that board and you dodged every single one. Tap anywhere to find out what happens next, you lucky thing!"');
-      setPhase('result3');
-    } else {
-      if(stage===1) s1Result = lastResult;
-      else if(stage===2) s2Result = lastResult;
-      spinBtn.disabled=false;
-      spinBtn.textContent = stage===1 ? "🎲 RISK IT: SPIN AGAIN" : "🎲 ONE LAST SPIN";
-      say(stage===1
-        ? '"Keep the million\u2026 or swap it for your annual salary \u2014 same number, brand-new currency. Choose wisely."'
-        : '"Accept your salary\u2026 or face the Mystery Board. No refunds."');
-      stage++;
+      acceptBtn.style.display="inline-block";
+      if(stage>=3){
+        s3Result = lastResult;
+        spinBtn.style.display="none";
+        acceptBtn.textContent="🎁 PICK YOUR PRIZE";
+        say('"FOUR bust zones on that board and you dodged every single one. Tap anywhere to find out what happens next, you lucky thing!"');
+        setPhase('result3');
+      } else {
+        if(stage===1) s1Result = lastResult;
+        else if(stage===2) s2Result = lastResult;
+        spinBtn.disabled=false;
+        spinBtn.textContent = stage===1 ? "🎲 RISK IT: SPIN AGAIN" : "🎲 ONE LAST SPIN";
+        say(stage===1
+          ? '"Keep the million\u2026 or swap it for your annual salary \u2014 same number, brand-new currency. Choose wisely."'
+          : '"Accept your salary\u2026 or face the Mystery Board. No refunds."');
+        stage++;
+      }
+      if(!reduceMotion) burst(130);
     }
-    if(!reduceMotion) burst(130);
+
+    if(stage>=3){
+      // Let the settled wheel sit on screen for a beat so they can read the board
+      // and see exactly which segment it landed on, before the popup appears.
+      setTimeout(reveal, 3000);
+    } else {
+      reveal();
+    }
   }
 
   function showChoiceScreen(){
