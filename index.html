@@ -515,15 +515,12 @@ const AudioEngine = (function(){
   let lastResult = null;   // {amt, quip, name} — whichever spin is currently the "kept" prize
   let lastKey = null;
   let s1Result = null, s2Result = null, s3Result = null;   // remembers each spin's result if they push their luck to spin 3
-  let bonusTier = 0;   // 0 = none, 1 = spin 2 stacked on top, 2 = spin 1 & 2 both stacked on top
+  let bonusTier = 0;   // 0 = none, 2 = spin 1 & 2 both stacked on top
 
   /* ---------- hidden bonus rule ----------
      Only reachable via the "pick your prize" screen after spin 3 (see chooseFinal()).
-     Picking spin 1 or spin 2 just gives that prize, no bonus. Picking spin 3 secretly
-     stacks extra prizes on top, depending on which Fun Board result it was: */
-  const BONUS_SPIN2_ONLY   = ["Flowers","Cake","Movie Date","Dinner Night Out"];
-  const BONUS_SPIN1_AND_2  = ["A Compliment","Hugs & Kisses","Firm Handshake","IOU: One Favour","One Cup of Coffee","One Ice Cream Scoop"];
-  // All bust-flavored results still get no bonus.
+     Picking spin 1 or spin 2 just gives that prize, no bonus.
+     Picking spin 3 always secretly stacks BOTH the spin 1 and spin 2 prizes on top. */
 
   /* ---------- "send proof" gate (Web3Forms — no backend needed) ----------
      This access key is a public identifier, not a secret — safe to keep in
@@ -730,10 +727,7 @@ const AudioEngine = (function(){
     else if(n===2){ lastResult = s2Result; bonusTier = 0; }
     else {
       lastResult = s3Result;
-      if(missedWindow) bonusTier = 0;
-      else if(BONUS_SPIN1_AND_2.includes(lastResult.name)) bonusTier = 2;
-      else if(BONUS_SPIN2_ONLY.includes(lastResult.name)) bonusTier = 1;
-      else bonusTier = 0;
+      bonusTier = missedWindow ? 0 : 2;
     }
     document.getElementById('chooseOverlay').classList.remove('show');
     accept();
@@ -762,9 +756,7 @@ const AudioEngine = (function(){
       subject: "\ud83c\udf82 Birthday wheel \u2014 they chose: " + lastResult.name,
       "Chosen Prize": lastResult.name,
       "Prize Details": lastResult.amt,
-      "Bonus Unlocked": bonusTier===2 ? "YES \u2014 Spin 1 & Spin 2 prizes both unlocked!"
-                       : bonusTier===1 ? "YES \u2014 Spin 2 prize unlocked!"
-                       : "No",
+      "Bonus Unlocked": bonusTier===2 ? "YES \u2014 Spin 1 & Spin 2 prizes both unlocked!" : "No",
       "Spin 1 Result": s1Result ? (s1Result.name+" \u2014 "+s1Result.amt) : "N/A (prize accepted early)",
       "Spin 2 Result": s2Result ? (s2Result.name+" \u2014 "+s2Result.amt) : "N/A (prize accepted early)",
       "Spin 3 Result": s3Result ? (s3Result.name+" \u2014 "+s3Result.amt) : "N/A (accepted before reaching spin 3)",
@@ -803,13 +795,11 @@ const AudioEngine = (function(){
     const isBust = lastResult.name==="Bust! 💀";
 
     const prizeBox = document.getElementById('greetPrize');
-    if(bonusTier>=1){
-      let html = '<div>+ '+lastResult.amt.replace(/^You win /i,"")+'</div>'+
-        '<div style="font-size:.75rem;opacity:.8;margin:6px 0 2px;letter-spacing:.5px;">\ud83c\udf81 SECRET BONUS UNLOCKED \ud83c\udf81</div>';
-      if(bonusTier===2){
-        html += '<div style="font-size:.88rem;">+ '+s1Result.amt.replace(/^You win /i,"")+'</div>';
-      }
-      html += '<div style="font-size:.88rem;">+ '+s2Result.amt.replace(/^You win /i,"")+'</div>';
+    if(bonusTier===2){
+      const html = '<div>+ '+lastResult.amt.replace(/^You win /i,"")+'</div>'+
+        '<div style="font-size:.75rem;opacity:.8;margin:6px 0 2px;letter-spacing:.5px;">\ud83c\udf81 SECRET BONUS UNLOCKED \ud83c\udf81</div>'+
+        '<div style="font-size:.88rem;">+ '+s1Result.amt.replace(/^You win /i,"")+'</div>'+
+        '<div style="font-size:.88rem;">+ '+s2Result.amt.replace(/^You win /i,"")+'</div>';
       prizeBox.innerHTML = html;
     } else {
       prizeBox.textContent = "+ " + lastResult.amt.replace(/^You win /i,"");
